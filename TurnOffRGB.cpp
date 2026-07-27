@@ -2,21 +2,21 @@
 | TurnOffRGB.cpp                                             |
 |                                                             |
 |   Entry point for TurnOffRGB - detects every RGB device    |
-|   OpenRGB supports and turns its lighting off.              |
+|   OpenRGB supports and turns its lighting off.  The tray   |
+|   icon is implemented directly against the Win32 shell     |
+|   APIs, no GUI toolkit required.                            |
 |                                                             |
 |   This file is part of the OpenRGB project                 |
 |   SPDX-License-Identifier: GPL-2.0-or-later                |
 \*---------------------------------------------------------*/
 
+#include <windows.h>
+#include <shellapi.h>
+
 #include <algorithm>
 #include <cctype>
+#include <cwchar>
 #include <string>
-
-#include <QApplication>
-#include <QAction>
-#include <QIcon>
-#include <QMenu>
-#include <QSystemTrayIcon>
 
 #include "AutoStart.h"
 #include "Colors.h"
@@ -24,8 +24,18 @@
 #include "ResourceManager.h"
 #include "RGBController.h"
 #include "SettingsManager.h"
+#include "resource.h"
 
 static const char* SETTINGS_KEY = "TurnOffRGB";
+
+static const UINT      WM_TRAYICON              = WM_APP + 1;
+static const UINT_PTR  ID_START_WITH_WINDOWS    = 1001;
+static const UINT_PTR  ID_STAY_RUNNING          = 1002;
+static const UINT_PTR  ID_TURN_OFF_NOW          = 1003;
+static const UINT_PTR  ID_EXIT                  = 1004;
+
+static AutoStart*       g_autostart = nullptr;
+static NOTIFYICONDATAW  g_nid       = {};
 
 /*---------------------------------------------------------*\
 | Turn off every currently detected RGB controller.  If a   |
@@ -86,87 +96,127 @@ static void SetStayResidentSetting(bool stay_resident)
     settings_manager->SaveSettings();
 }
 
-/*---------------------------------------------------------*\
-| Tray icon exposing the app's only options.  Left as a     |
-| plain QObject subclass (no Q_OBJECT/signals of our own)   |
-| so no moc step is needed for this file.                   |
-\*---------------------------------------------------------*/
-class TurnOffRGBTray : public QObject
+static void ToggleAutoStart()
 {
-public:
-    explicit TurnOffRGBTray(AutoStart& autostart_ref) :
-        autostart(autostart_ref)
+    if(g_autostart->IsAutoStartEnabled())
     {
-        menu = new QMenu();
-
-        start_with_windows_action = menu->addAction("Start with Windows");
-        start_with_windows_action->setCheckable(true);
-        start_with_windows_action->setChecked(autostart.IsAutoStartEnabled());
-        connect(start_with_windows_action, &QAction::toggled, this, &TurnOffRGBTray::OnStartWithWindowsToggled);
-
-        stay_running_action = menu->addAction("Stay running and keep RGB off");
-        stay_running_action->setCheckable(true);
-        stay_running_action->setChecked(GetStayResidentSetting());
-        connect(stay_running_action, &QAction::toggled, this, &TurnOffRGBTray::OnStayRunningToggled);
-
-        menu->addSeparator();
-
-        QAction* turn_off_now_action = menu->addAction("Turn Off RGB Now");
-        connect(turn_off_now_action, &QAction::triggered, this, [](){ TurnOffAllRGB(); });
-
-        QAction* exit_action = menu->addAction("Exit");
-        connect(exit_action, &QAction::triggered, qApp, &QCoreApplication::quit);
-
-        tray_icon = new QSystemTrayIcon(QIcon(":/icons/TurnOffRGB.ico"));
-        tray_icon->setToolTip("Turn Off RGB");
-        tray_icon->setContextMenu(menu);
-        tray_icon->show();
+        g_autostart->DisableAutoStart();
     }
-
-    ~TurnOffRGBTray()
+    else
     {
-        delete tray_icon;
-        delete menu;
+        AutoStartInfo info;
+        info.path = g_autostart->GetExePath();
+        info.desc = "Turn Off RGB";
+
+        g_autostart->EnableAutoStart(info);
     }
+}
 
-private:
-    void OnStartWithWindowsToggled(bool checked)
-    {
-        if(checked)
-        {
-            AutoStartInfo info;
-            info.path = autostart.GetExePath();
-            info.desc = "Turn Off RGB";
-
-            autostart.EnableAutoStart(info);
-        }
-        else
-        {
-            autostart.DisableAutoStart();
-        }
-    }
-
-    void OnStayRunningToggled(bool checked)
-    {
-        SetStayResidentSetting(checked);
-    }
-
-    AutoStart&          autostart;
-    QMenu*              menu;
-    QSystemTrayIcon*    tray_icon;
-    QAction*            start_with_windows_action;
-    QAction*            stay_running_action;
-};
-
-int main(int argc, char *argv[])
+static void ShowTrayMenu(HWND hwnd)
 {
-    QApplication app(argc, argv);
-    app.setQuitOnLastWindowClosed(false);
+    HMENU menu = CreatePopupMenu();
 
-    QApplication::setOrganizationName("TurnOffRGB");
-    QApplication::setApplicationName("TurnOffRGB");
+    AppendMenuW(menu, MF_STRING | (g_autostart->IsAutoStartEnabled() ? MF_CHECKED : MF_UNCHECKED),
+        ID_START_WITH_WINDOWS, L"Start with Windows");
+    AppendMenuW(menu, MF_STRING | (GetStayResidentSetting() ? MF_CHECKED : MF_UNCHECKED),
+        ID_STAY_RUNNING, L"Stay running and keep RGB off");
+    AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(menu, MF_STRING, ID_TURN_OFF_NOW, L"Turn Off RGB Now");
+    AppendMenuW(menu, MF_STRING, ID_EXIT, L"Exit");
 
+    POINT cursor_pos;
+    GetCursorPos(&cursor_pos);
+
+    /*-----------------------------------------------------*\
+    | Required so the popup menu closes correctly when the  |
+    | user clicks away from it                              |
+    \*-----------------------------------------------------*/
+    SetForegroundWindow(hwnd);
+    TrackPopupMenu(menu, TPM_RIGHTBUTTON, cursor_pos.x, cursor_pos.y, 0, hwnd, NULL);
+    PostMessage(hwnd, WM_NULL, 0, 0);
+
+    DestroyMenu(menu);
+}
+
+static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+    switch(msg)
+    {
+        case WM_TRAYICON:
+            if((LOWORD(lparam) == WM_RBUTTONUP) || (LOWORD(lparam) == WM_LBUTTONUP))
+            {
+                ShowTrayMenu(hwnd);
+            }
+            return 0;
+
+        case WM_COMMAND:
+            switch(LOWORD(wparam))
+            {
+                case ID_START_WITH_WINDOWS:
+                    ToggleAutoStart();
+                    break;
+
+                case ID_STAY_RUNNING:
+                    SetStayResidentSetting(!GetStayResidentSetting());
+                    break;
+
+                case ID_TURN_OFF_NOW:
+                    TurnOffAllRGB();
+                    break;
+
+                case ID_EXIT:
+                    DestroyWindow(hwnd);
+                    break;
+            }
+            return 0;
+
+        case WM_DESTROY:
+            Shell_NotifyIconW(NIM_DELETE, &g_nid);
+            PostQuitMessage(0);
+            return 0;
+    }
+
+    return DefWindowProcW(hwnd, msg, wparam, lparam);
+}
+
+static int RunTrayApp(HINSTANCE instance)
+{
+    const wchar_t* CLASS_NAME = L"TurnOffRGBTrayWindow";
+
+    WNDCLASSEXW wc      = {};
+    wc.cbSize           = sizeof(WNDCLASSEXW);
+    wc.lpfnWndProc      = WndProc;
+    wc.hInstance        = instance;
+    wc.lpszClassName    = CLASS_NAME;
+
+    RegisterClassExW(&wc);
+
+    HWND hwnd = CreateWindowExW(0, CLASS_NAME, L"TurnOffRGB", 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, instance, NULL);
+
+    g_nid.cbSize            = sizeof(NOTIFYICONDATAW);
+    g_nid.hWnd              = hwnd;
+    g_nid.uID               = 1;
+    g_nid.uFlags            = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    g_nid.uCallbackMessage  = WM_TRAYICON;
+    g_nid.hIcon             = LoadIconW(instance, MAKEINTRESOURCEW(IDI_TRAYICON));
+    wcscpy_s(g_nid.szTip, L"Turn Off RGB");
+
+    Shell_NotifyIconW(NIM_ADD, &g_nid);
+
+    MSG msg;
+    while(GetMessage(&msg, NULL, 0, 0) > 0)
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    return (int)msg.wParam;
+}
+
+int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
+{
     AutoStart autostart("TurnOffRGB");
+    g_autostart = &autostart;
 
     /*-----------------------------------------------------*\
     | Detect every supported device, then immediately turn  |
@@ -177,14 +227,11 @@ int main(int argc, char *argv[])
 
     TurnOffAllRGB();
 
-    int  result        = 0;
-    bool stay_resident  = GetStayResidentSetting() && QSystemTrayIcon::isSystemTrayAvailable();
+    int result = 0;
 
-    if(stay_resident)
+    if(GetStayResidentSetting())
     {
-        TurnOffRGBTray tray(autostart);
-
-        result = app.exec();
+        result = RunTrayApp(instance);
     }
 
     DetectionManager::get()->Cleanup();
