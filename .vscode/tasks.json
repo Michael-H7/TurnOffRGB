@@ -2,6 +2,17 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "type": "shell",
+            "label": "Clean TurnOffRGB Build",
+            "command": "cmd",
+            "args": ["/c", "if exist build rd /s /q build"],
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
             "type": "cmake",
             "label": "CMake: configure",
             "command": "configure",
