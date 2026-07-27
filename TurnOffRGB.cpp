@@ -72,6 +72,16 @@ static void TurnOffAllRGB()
         }
         else
         {
+            /*-------------------------------------------------------------*\
+            | No explicit "Off" mode.  Setting colors alone is not enough - |
+            | if the currently active mode is an on-device effect (e.g.    |
+            | "Rainbow") it ignores the color buffer entirely and keeps    |
+            | animating regardless of what we write.  SetCustomMode()      |
+            | switches to a Direct/Custom/Static mode that actually honors |
+            | per-LED colors before we black them out.                     |
+            \*-------------------------------------------------------------*/
+            controller->SetCustomMode();
+            controller->DeviceUpdateMode();
             controller->SetAllColors(COLOR_BLACK);
             controller->DeviceUpdateLEDs();
         }
