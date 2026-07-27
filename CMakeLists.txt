@@ -44,14 +44,35 @@ endif()
 
 #-------------------------------------------------------------------------------------------#
 # Device controller sources -- gathered the same way the qmake project did: every file under #
-# Controllers/, excluding files suffixed for other platforms (_Linux/_FreeBSD/_MacOS).       #
-# CONFIGURE_DEPENDS re-runs the glob on the next configure if files are added/removed.       #
+# Controllers/, excluding files suffixed for other platforms (_Linux/_FreeBSD/_MacOS), then  #
+# adding back anything with _Windows in its name -- suffixes can be combined (e.g. a file    #
+# named ..._Windows_MacOS.h applies to both, and must stay included).                        #
+# CONFIGURE_DEPENDS re-runs the glob on the next configure if files are added/removed.        #
 #-------------------------------------------------------------------------------------------#
-file(GLOB_RECURSE CONTROLLER_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/Controllers/*.cpp")
-file(GLOB_RECURSE CONTROLLER_HEADERS CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/Controllers/*.h")
+file(GLOB_RECURSE CONTROLLER_SOURCES_ALL CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/Controllers/*.cpp")
+file(GLOB_RECURSE CONTROLLER_HEADERS_ALL CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/Controllers/*.h")
 
+set(CONTROLLER_SOURCES_WINDOWS ${CONTROLLER_SOURCES_ALL})
+set(CONTROLLER_HEADERS_WINDOWS ${CONTROLLER_HEADERS_ALL})
+list(FILTER CONTROLLER_SOURCES_WINDOWS INCLUDE REGEX "_Windows")
+list(FILTER CONTROLLER_HEADERS_WINDOWS INCLUDE REGEX "_Windows")
+
+set(CONTROLLER_SOURCES ${CONTROLLER_SOURCES_ALL})
+set(CONTROLLER_HEADERS ${CONTROLLER_HEADERS_ALL})
 list(FILTER CONTROLLER_SOURCES EXCLUDE REGEX "_Linux|_FreeBSD|_MacOS")
 list(FILTER CONTROLLER_HEADERS EXCLUDE REGEX "_Linux|_FreeBSD|_MacOS")
+
+list(APPEND CONTROLLER_SOURCES ${CONTROLLER_SOURCES_WINDOWS})
+list(APPEND CONTROLLER_HEADERS ${CONTROLLER_HEADERS_WINDOWS})
+list(REMOVE_DUPLICATES CONTROLLER_SOURCES)
+list(REMOVE_DUPLICATES CONTROLLER_HEADERS)
+
+#-------------------------------------------------------------------------------------------#
+# SinowealthControllerDetect.cpp textually #includes GenesisXenon200Controller.cpp, so that  #
+# file must not also be compiled as its own translation unit (would duplicate symbols).      #
+#-------------------------------------------------------------------------------------------#
+list(REMOVE_ITEM CONTROLLER_SOURCES
+    "${CMAKE_SOURCE_DIR}/Controllers/SinowealthController/GenesisXenon200Controller/GenesisXenon200Controller.cpp")
 
 set(CONTROLLER_INCLUDE_DIRS "")
 foreach(header ${CONTROLLER_HEADERS})
@@ -72,6 +93,8 @@ add_executable(TurnOffRGB WIN32
     ${CONTROLLER_HEADERS}
 
     Colors.h
+    hsv.cpp
+    hsv.h
     DetectionManager.cpp
     DetectionManager.h
     JsonUtils.cpp
