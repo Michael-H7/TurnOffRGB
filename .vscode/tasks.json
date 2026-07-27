@@ -1,0 +1,42 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "cmake",
+            "label": "CMake: configure (Release)",
+            "command": "configure",
+            "preset": "windows-release",
+            "problemMatcher": []
+        },
+        {
+            "type": "cmake",
+            "label": "Build TurnOffRGB (Release)",
+            "command": "build",
+            "preset": "windows-release",
+            "targets": ["TurnOffRGB"],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "dependsOn": ["CMake: configure (Release)"],
+            "problemMatcher": ["$msCompile"]
+        },
+        {
+            "type": "cmake",
+            "label": "CMake: configure (Debug)",
+            "command": "configure",
+            "preset": "windows-debug",
+            "problemMatcher": []
+        },
+        {
+            "type": "cmake",
+            "label": "Build TurnOffRGB (Debug)",
+            "command": "build",
+            "preset": "windows-debug",
+            "targets": ["TurnOffRGB"],
+            "group": "build",
+            "dependsOn": ["CMake: configure (Debug)"],
+            "problemMatcher": ["$msCompile"]
+        }
+    ]
+}
