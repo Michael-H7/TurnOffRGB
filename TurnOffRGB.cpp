@@ -82,7 +82,18 @@ static bool GetStayResidentSetting()
 {
     json settings = ResourceManager::get()->GetSettingsManager()->GetSettings(SETTINGS_KEY);
 
-    return(settings.contains("stay_resident") && settings["stay_resident"]);
+    /*-------------------------------------------------------------*\
+    | Default to staying resident until a setting is saved.  The    |
+    | tray menu (with its own "stay running" toggle) is otherwise   |
+    | unreachable on a fresh install: it only exists while the app  |
+    | is staying resident in the first place.                       |
+    \*-------------------------------------------------------------*/
+    if(!settings.contains("stay_resident"))
+    {
+        return(true);
+    }
+
+    return(settings["stay_resident"]);
 }
 
 static void SetStayResidentSetting(bool stay_resident)
