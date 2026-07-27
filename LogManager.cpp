@@ -15,9 +15,6 @@
 #include "filesystem.h"
 #include "JsonUtils.h"
 #include "LogManager.h"
-#include "NetworkClient.h"
-#include "NetworkServer.h"
-#include "ResourceManager.h"
 
 const char* LogManager::LOG_CODES[] = {"Fatal", "Error", "Warning", "Info", "Verbose", "Debug", "Trace", "Dialog"};
 
@@ -244,11 +241,6 @@ void LogManager::Configure(json config, const filesystem::path& config_dir)
 \*---------------------------------------------------------*/
 void LogManager::ClearLogBuffer()
 {
-    if(ResourceManager::get()->IsLocalClient() && (ResourceManager::get()->GetLocalClient()->GetSupportsProfileManagerAPI()))
-    {
-        ResourceManager::get()->GetLocalClient()->LogManager_ClearLogBuffer();
-    }
-
     all_messages.clear();
 }
 
@@ -281,13 +273,7 @@ void LogManager::SetLogLevel(unsigned int level, bool local_only)
         level = LL_TRACE;
     }
 
-    /*-----------------------------------------------------*\
-    | Set the server's log level if local client            |
-    \*-----------------------------------------------------*/
-    if(!local_only && ResourceManager::get()->IsLocalClient() && (ResourceManager::get()->GetLocalClient()->GetSupportsLogManagerAPI()))
-    {
-        ResourceManager::get()->GetLocalClient()->LogManager_SetLogLevel(level);
-    }
+    (void)local_only;
 
     LOG_DEBUG("[%s] LogLevel set to %d", LOGMANAGER, level);
 
@@ -388,13 +374,6 @@ void LogManager::LogEntry_message(PLogMessage message)
     if(log_console_enabled)
     {
         all_messages.push_back(message);
-
-        NetworkServer* server = ResourceManager::get()->GetServer();
-
-        if(server)
-        {
-            server->SignalLogManagerLoggedEntry(*message);
-        }
     }
 
     /*-----------------------------------------------------*\

@@ -15,7 +15,6 @@
 #include "JsonUtils.h"
 #include "LogManager.h"
 #include "pci_ids.h"
-#include "ProfileManager.h"
 #include "ResourceManager.h"
 #include "SettingsManager.h"
 #include "StringUtils.h"
@@ -423,16 +422,6 @@ void DetectionManager::RegisterRGBController(RGBController *rgb_controller, cons
     \*-----------------------------------------------------*/
     rgb_controller->flags &= ~CONTROLLER_FLAG_REMOTE;
     rgb_controller->flags |= CONTROLLER_FLAG_LOCAL;
-
-    /*-----------------------------------------------------*\
-    | Load manual configuration for the new controller      |
-    \*-----------------------------------------------------*/
-    ResourceManager::get()->GetProfileManager()->LoadControllerConfiguration(rgb_controller);
-
-    /*-----------------------------------------------------*\
-    | Load active profile for the new controller            |
-    \*-----------------------------------------------------*/
-    ResourceManager::get()->GetProfileManager()->LoadControllerActiveProfile(rgb_controller);
 
     /*-----------------------------------------------------*\
     | Add the new controller to the list                    |

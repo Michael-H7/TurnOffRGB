@@ -2,8 +2,7 @@
 | ResourceManager.h                                         |
 |                                                           |
 |   OpenRGB Resource Manager controls access to application |
-|   components including RGBControllers, I2C interfaces,    |
-|   and network SDK components                              |
+|   components including RGBControllers and I2C interfaces  |
 |                                                           |
 |   Adam Honse (CalcProgrammer1)                27 Sep 2020 |
 |                                                           |
@@ -30,10 +29,6 @@
 using json = nlohmann::json;
 
 class LogManager;
-class NetworkClient;
-class NetworkServer;
-class PluginManagerInterface;
-class ProfileManager;
 class RGBController;
 class SettingsManager;
 
@@ -74,10 +69,7 @@ public:
     /*-----------------------------------------------------*\
     | Resource Accessors                                    |
     \*-----------------------------------------------------*/
-    std::vector<NetworkClient*>&        GetClients();
     filesystem::path                    GetConfigurationDirectory();
-    std::string                         GetDefaultServerHost();
-    unsigned short                      GetDefaultServerPort();
     LogManager*                         GetLogManager();
     std::vector<HIDDeviceInfo>          GetHIDDeviceInfo();
     std::vector<i2c_smbus_interface*>&  GetI2CBuses();
@@ -85,30 +77,11 @@ public:
     std::vector<std::string>            GetSerialPorts();
     std::vector<SerialDeviceInfo>       GetUSBSerialPorts();
     std::vector<USBDeviceInfo>          GetUSBDeviceInfo();
-    PluginManagerInterface*             GetPluginManager();
-    ProfileManager*                     GetProfileManager();
     std::vector<RGBController*>&        GetRGBControllers();
     std::vector<RGBControllerInterface*>&   GetRGBControllerInterfaces();
-    NetworkServer*                      GetServer();
     SettingsManager*                    GetSettingsManager();
 
     void                                SetConfigurationDirectory(const filesystem::path &directory);
-    void                                SetDefaultServerHost(std::string server_host);
-    void                                SetDefaultServerPort(unsigned short server_port);
-    void                                SetPluginManager(PluginManagerInterface* plugin_manager_ptr);
-
-    /*-----------------------------------------------------*\
-    | Network Client Registration                           |
-    \*-----------------------------------------------------*/
-    void                                RegisterNetworkClient(NetworkClient* new_client);
-    void                                UnregisterNetworkClient(NetworkClient* network_client);
-
-    /*-----------------------------------------------------*\
-    | Local Client Accessors                                |
-    \*-----------------------------------------------------*/
-    NetworkClient*                      GetLocalClient();
-    unsigned int                        GetLocalClientProtocolVersion();
-    bool                                IsLocalClient();
 
     /*-----------------------------------------------------*\
     | Callback Registration Functions                       |
@@ -119,10 +92,8 @@ public:
     /*-----------------------------------------------------*\
     | Functions to manage detection                         |
     \*-----------------------------------------------------*/
-    bool                                GetDetectionEnabled();
     unsigned int                        GetDetectionPercent();
     std::string                         GetDetectionString();
-    void                                StopDeviceDetection();
     void                                RescanDevices();
     void                                UpdateDeviceList();
     void                                WaitForDetection();
@@ -132,64 +103,17 @@ public:
     \*-----------------------------------------------------*/
     void                                SignalResourceManagerUpdate(unsigned int update_reason);
 
-    void                                Initialize(bool tryConnect, bool detectDevices, bool startServer, bool applyPostOptions);
-    void                                InitializeServer();
+    void                                Initialize();
 
     void                                WaitForInitialization();
 
 private:
-    bool                                AttemptLocalConnection();
     void                                SetupConfigurationDirectory();
 
     /*-----------------------------------------------------*\
     | Static pointer to shared instance of ResourceManager  |
     \*-----------------------------------------------------*/
     static ResourceManager*                     instance;
-
-    /*-----------------------------------------------------*\
-    | Auto connection permitting flag                       |
-    \*-----------------------------------------------------*/
-    bool                                        tryAutoConnect;
-
-    /*-----------------------------------------------------*\
-    | Detection enabled flag                                |
-    \*-----------------------------------------------------*/
-    bool                                        detection_enabled;
-
-    /*-----------------------------------------------------*\
-    | Auto connection active flag                           |
-    \*-----------------------------------------------------*/
-    bool                                        auto_connection_active;
-
-    /*-----------------------------------------------------*\
-    | Auto connection client pointer                        |
-    \*-----------------------------------------------------*/
-    NetworkClient *                             auto_connection_client;
-
-    /*-----------------------------------------------------*\
-    | Auto connection permitting flag                       |
-    \*-----------------------------------------------------*/
-    bool                                        start_server;
-
-    /*-----------------------------------------------------*\
-    | Auto connection permitting flag                       |
-    \*-----------------------------------------------------*/
-    bool                                        apply_post_options;
-
-    /*-----------------------------------------------------*\
-    | Initialization completion flag                        |
-    \*-----------------------------------------------------*/
-    std::atomic<bool>                           init_finished;
-
-    /*-----------------------------------------------------*\
-    | Plugin Manager                                        |
-    \*-----------------------------------------------------*/
-    PluginManagerInterface*                     plugin_manager;
-
-    /*-----------------------------------------------------*\
-    | Profile Manager                                       |
-    \*-----------------------------------------------------*/
-    ProfileManager*                             profile_manager;
 
     /*-----------------------------------------------------*\
     | Settings Manager                                      |
@@ -200,25 +124,17 @@ private:
     | RGBControllers                                        |
     \*-----------------------------------------------------*/
     std::vector<RGBController*>                 rgb_controllers;
-    std::vector<RGBController*>                 rgb_controllers_hw;
     std::vector<RGBControllerInterface*>        rgb_controller_interfaces;
-
-    /*-----------------------------------------------------*\
-    | Network Server                                        |
-    \*-----------------------------------------------------*/
-    NetworkServer*                              server;
-    std::string                                 default_server_host;
-    unsigned short                              default_server_port;
-
-    /*-----------------------------------------------------*\
-    | Network Clients                                       |
-    \*-----------------------------------------------------*/
-    std::vector<NetworkClient*>                 clients;
 
     /*-----------------------------------------------------*\
     | Device List Mutex                                     |
     \*-----------------------------------------------------*/
     std::mutex                                  DeviceListChangeMutex;
+
+    /*-----------------------------------------------------*\
+    | Initialization completion flag                        |
+    \*-----------------------------------------------------*/
+    std::atomic<bool>                           init_finished;
 
     /*-----------------------------------------------------*\
     | ResourceManager Callbacks                             |
@@ -228,7 +144,7 @@ private:
     std::mutex                                  ResourceManagerCallbackMutex;
 
     /*-----------------------------------------------------*\
-    | OpenRGB configuration directory path                  |
+    | Configuration directory path                          |
     \*-----------------------------------------------------*/
     filesystem::path                            config_dir;
 };
