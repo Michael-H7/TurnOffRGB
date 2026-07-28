@@ -212,7 +212,16 @@ static int RunTrayApp(HINSTANCE instance)
 
     RegisterClassExW(&wc);
 
-    HWND hwnd = CreateWindowExW(0, CLASS_NAME, L"TurnOffRGB", 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, instance, NULL);
+    /*-------------------------------------------------------*\
+    | A real (if never-shown) top-level window is required   |
+    | here, not a message-only (HWND_MESSAGE) window: the     |
+    | SetForegroundWindow/TrackPopupMenu/PostMessage trick in |
+    | ShowTrayMenu that lets the popup menu dismiss when the  |
+    | user clicks away relies on this window being able to    |
+    | become the foreground window, which message-only        |
+    | windows never can.                                       |
+    \*-------------------------------------------------------*/
+    HWND hwnd = CreateWindowExW(0, CLASS_NAME, L"TurnOffRGB", 0, 0, 0, 0, 0, NULL, NULL, instance, NULL);
 
     g_nid.cbSize            = sizeof(NOTIFYICONDATAW);
     g_nid.hWnd              = hwnd;
